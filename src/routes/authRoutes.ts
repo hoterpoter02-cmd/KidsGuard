@@ -32,6 +32,10 @@ const router = express.Router(); // api/auth/
  *               password:
  *                 type: string
  *                 format: password
+ *               role:
+ *                 type: string
+ *                 enum: ["user", "admin"]
+ *                 default: "user"
  *     responses:
  *       201:
  *         description: User registered

@@ -53,13 +53,11 @@ export const registerUser = async (req: Request, res: Response) => {
     if (existing) {
       return res.status(409).json({ message: "Email already in use" });
     }
-    console.log("Email not found in DB!");
 
     const hashed = await bcrypt.hash(
       password,
       Number(process.env.Hash_Salt) || 10,
     );
-    console.log("Hash done");
 
     const user = await User.create({ name, email, password: hashed });
 
@@ -107,7 +105,6 @@ export const loginUser = async (req: Request, res: Response) => {
 };
 
 export const logoutUser = async (_req: Request, res: Response) => {
-  // With JWTs the server is stateless; instruct client to drop token.
   try {
     res.clearCookie(REFRESH_COOKIE_NAME, {
       httpOnly: true,

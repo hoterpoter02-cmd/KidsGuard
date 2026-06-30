@@ -1,13 +1,12 @@
 import dotenv from "dotenv";
 dotenv.config();
 import express, { NextFunction, Request, Response } from "express";
-import session from "express-session";
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
-import allowedZoneRoutes from "./routes/allowedZoneRoutes";
 import watchDataRoutes from "./routes/watchDataRoutes";
 import linkWatchRoutes from "./routes/linkWatchRoutes";
 import audioRoutes from "./routes/audioRoutes";
+import adminRoutes from "./routes/adminRoutes";
 import cors from "cors";
 import morgan from "morgan";
 import { setupSwagger } from "./config/swagger";
@@ -15,17 +14,17 @@ import { setupSwagger } from "./config/swagger";
 const app = express();
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(morgan("dev")); //http request logger
 
 setupSwagger(app);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/allowed-zone", allowedZoneRoutes);
 app.use("/api/watch-data", watchDataRoutes);
 app.use("/api/link-watch", linkWatchRoutes);
 app.use("/api/audio", audioRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Catch-all for unknown routes (invalid calls)
 app.use((req: Request, res: Response) => {

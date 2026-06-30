@@ -46,6 +46,12 @@ const router = Router(); // api/audio/
  *                 confidence:
  *                   type: number
  *                   nullable: true
+ *                 safety:
+ *                   type: string
+ *                   nullable: true
+ *                 safetyConfidence:
+ *                   type: number
+ *                   nullable: true
  *                 createdAt:
  *                   type: string
  *                   format: date-time

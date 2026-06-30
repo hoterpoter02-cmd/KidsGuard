@@ -13,6 +13,7 @@ export const getCurrentUserInfo = async (req: Request, res: Response) => {
         name: user.name ?? "",
         photoUrl: user.photoUrl ?? "",
         serialNumbers: user.serialNumbers ?? [],
+        role: user.role ?? "user",
       },
     })
     .status(200);

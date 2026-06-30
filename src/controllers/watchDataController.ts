@@ -6,6 +6,8 @@ import { RecordedAudio } from "../models/RecordedAudio";
 interface IsentimentResponse {
   emotion: string | null;
   confidence: number | null;
+  safety: string | null;
+  safetyConfidence: number | null;
 }
 
 // POST /api/watch-data
@@ -23,6 +25,8 @@ export const uploadWatchData = async (req: Request, res: Response) => {
     let sentimentResponse: IsentimentResponse = {
       emotion: null,
       confidence: null,
+      safety: null,
+      safetyConfidence: null,
     };
 
     if (req.file) {
@@ -37,7 +41,7 @@ export const uploadWatchData = async (req: Request, res: Response) => {
       );
       try {
         const response = await fetch(
-          "https://abedir-clstm-fastapi.hf.space/predict",
+          "https://abedir-emotion-detector-api.hf.space/predict",
           {
             method: "POST",
             body: formData,
@@ -46,6 +50,28 @@ export const uploadWatchData = async (req: Request, res: Response) => {
         sentimentResponse = await response.json();
       } catch (error) {
         console.log("Error Sentiment Analysis", error);
+      }
+      let formDataSafety = new FormData();
+      formDataSafety.append(
+        "audio",
+        new Blob([new Uint8Array(req.file.buffer)], {
+          type: req.file.mimetype,
+        }),
+        req.file.originalname,
+      );
+      try {
+        const safetyResponse = await fetch(
+          "https://mennatullahhany-bertx.hf.space/predict",
+          {
+            method: "POST",
+            body: formDataSafety,
+          },
+        );
+        const safetyData = await safetyResponse.json();
+        sentimentResponse.safety = safetyData.safety;
+        sentimentResponse.safetyConfidence = safetyData.confidence;
+      } catch (error) {
+        console.log("Error Safety Analysis", error);
       }
     }
 
@@ -59,11 +85,13 @@ export const uploadWatchData = async (req: Request, res: Response) => {
     });
 
     if (recordedAudio) {
-      const recordedAudioData = await RecordedAudio.create({
+      await RecordedAudio.create({
         serialNumber,
         recordedAudio: recordedAudio,
         emotion: sentimentResponse.emotion,
         confidence: sentimentResponse.confidence,
+        safety: sentimentResponse.safety,
+        safetyConfidence: sentimentResponse.safetyConfidence,
       });
     }
 

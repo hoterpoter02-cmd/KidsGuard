@@ -4,7 +4,9 @@ export interface IRecordedAudio extends Document {
   serialNumber: string;
   recordedAudio: Buffer;
   emotion: string | null;
+  safety: string | null;
   confidence: number | null;
+  safetyConfidence: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -14,6 +16,8 @@ const RecordedAudioSchema = new Schema<IRecordedAudio>(
     recordedAudio: { type: Buffer, required: true },
     emotion: { type: String, required: false },
     confidence: { type: Number, required: false },
+    safety: { type: String, required: false },
+    safetyConfidence: { type: Number, required: false },
   },
   { timestamps: true },
 );
