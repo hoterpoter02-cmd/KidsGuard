@@ -5,6 +5,7 @@ import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
 import watchDataRoutes from "./routes/watchDataRoutes";
 import linkWatchRoutes from "./routes/linkWatchRoutes";
+import allowedZoneRoutes from "./routes/allowedZoneRoutes";
 import audioRoutes from "./routes/audioRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import cors from "cors";
@@ -25,6 +26,7 @@ app.use("/api/watch-data", watchDataRoutes);
 app.use("/api/link-watch", linkWatchRoutes);
 app.use("/api/audio", audioRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/allowed-zone", allowedZoneRoutes);
 
 // Catch-all for unknown routes (invalid calls)
 app.use((req: Request, res: Response) => {
