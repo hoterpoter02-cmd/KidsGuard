@@ -108,6 +108,99 @@ router.delete("/me", isAuthenticated, deleteUserAccount);
  *     responses:
  *       200:
  *         description: Notifications retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 notifications:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       recipientUserId:
+ *                         type: string
+ *                       serialNumber:
+ *                         type: string
+ *                       alertType:
+ *                         type: string
+ *                         enum:
+ *                           - zone
+ *                           - danger
+ *                       watchDataId:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           serialNumber:
+ *                             type: string
+ *                           heartRate:
+ *                             type: number
+ *                             nullable: true
+ *                           stepCount:
+ *                             type: number
+ *                             nullable: true
+ *                           longitude:
+ *                             type: number
+ *                             nullable: true
+ *                           latitude:
+ *                             type: number
+ *                             nullable: true
+ *                           batteryLevel:
+ *                             type: number
+ *                             nullable: true
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           updatedAt:
+ *                             type: string
+ *                             format: date-time
+ *                       recordedAudioId:
+ *                         oneOf:
+ *                           - type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               serialNumber:
+ *                                 type: string
+ *                               recordedAudio:
+ *                                 type: object
+ *                                 properties:
+ *                                   type:
+ *                                     type: string
+ *                                     example: Buffer
+ *                                   data:
+ *                                     type: array
+ *                                     items:
+ *                                       type: integer
+ *                                       format: int32
+ *                               emotion:
+ *                                 type: string
+ *                                 nullable: true
+ *                               confidence:
+ *                                 type: number
+ *                                 nullable: true
+ *                               safety:
+ *                                 type: string
+ *                                 nullable: true
+ *                               safetyConfidence:
+ *                                 type: number
+ *                                 nullable: true
+ *                               createdAt:
+ *                                 type: string
+ *                                 format: date-time
+ *                               updatedAt:
+ *                                 type: string
+ *                                 format: date-time
+ *                           - type: 'null'
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       updatedAt:
+ *                         type: string
+ *                         format: date-time
  *       401:
  *         description: Not authenticated
  */

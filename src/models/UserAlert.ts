@@ -6,7 +6,6 @@ export interface IUserAlert extends Document {
   alertType: "zone" | "danger";
   watchDataId: Schema.Types.ObjectId;
   recordedAudioId?: Schema.Types.ObjectId;
-  isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +30,6 @@ const UserAlertSchema = new Schema<IUserAlert>(
       required: false,
       ref: "RecordedAudio",
     },
-    isRead: { type: Boolean, required: true, default: false },
   },
   { timestamps: true },
 );
