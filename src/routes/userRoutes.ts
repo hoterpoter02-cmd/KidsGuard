@@ -4,6 +4,7 @@ import {
   updateUserInformation,
   deleteUserAccount,
   getCurrentUserInfo,
+  getUserNotifications,
 } from "../controllers/userController";
 
 const router = Router(); //api/user/
@@ -93,5 +94,23 @@ router.put("/me", isAuthenticated, updateUserInformation);
  *         description: Not authenticated
  */
 router.delete("/me", isAuthenticated, deleteUserAccount);
+
+// Get notifications for the current authenticated user
+/**
+ * @openapi
+ * /api/user/notifications:
+ *   get:
+ *     summary: Get current user's notifications
+ *     tags:
+ *       - User
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Notifications retrieved
+ *       401:
+ *         description: Not authenticated
+ */
+router.get("/notifications", isAuthenticated, getUserNotifications);
 
 export default router;

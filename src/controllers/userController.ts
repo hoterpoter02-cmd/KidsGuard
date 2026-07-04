@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { User } from "../models/User";
+import { UserAlert } from "../models/UserAlert";
 
 export const getCurrentUserInfo = async (req: Request, res: Response) => {
   const user: any = await User.findById((req as any).user.id);
@@ -53,6 +54,20 @@ export const deleteUserAccount = async (req: Request, res: Response) => {
       sameSite: "strict",
     });
     res.status(204).json({ message: "User account deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err });
+  }
+};
+
+export const getUserNotifications = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const notifications = await UserAlert.find({ recipientUserId: userId })
+      .sort({ createdAt: -1 })
+      .populate("watchDataId")
+      .populate("recordedAudioId");
+
+    res.status(200).json({ notifications });
   } catch (err) {
     res.status(500).json({ error: err });
   }
