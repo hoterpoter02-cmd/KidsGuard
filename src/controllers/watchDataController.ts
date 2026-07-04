@@ -2,12 +2,34 @@ import { Request, Response } from "express";
 import { WatchData } from "../models/WatchData";
 import { IUser, User } from "../models/User";
 import { RecordedAudio } from "../models/RecordedAudio";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "ffmpeg-static";
+import { PassThrough } from "stream";
+
+ffmpeg.setFfmpegPath(ffmpegPath as string);
 
 interface IsentimentResponse {
   emotion: string | null;
   confidence: number | null;
   safety: string | null;
   safetyConfidence: number | null;
+}
+
+function convertToWav(buffer: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const input = new PassThrough();
+    input.end(buffer);
+
+    const chunks: Buffer[] = [];
+    ffmpeg(input)
+      .toFormat("wav")
+      .audioChannels(1)
+      .audioFrequency(16000)
+      .on("error", reject)
+      .on("end", () => resolve(Buffer.concat(chunks)))
+      .pipe()
+      .on("data", (chunk) => chunks.push(chunk));
+  });
 }
 
 // POST /api/watch-data
@@ -30,50 +52,60 @@ export const uploadWatchData = async (req: Request, res: Response) => {
     };
 
     if (req.file) {
-      // Multer changes the file buffer to Uint8Array, convert it back to Blob
-      let formData = new FormData();
-      formData.append(
-        "file",
-        new Blob([new Uint8Array(req.file.buffer)], {
-          type: req.file.mimetype,
-        }),
-        req.file.originalname,
-      );
+      let wavBuffer: Buffer;
       try {
-        const response = await fetch(
-          "https://abedir-emotion-detector-api.hf.space/predict",
-          {
-            method: "POST",
-            body: formData,
-          },
-        );
-        sentimentResponse = await response.json();
-        console.log("Sentiment Response", sentimentResponse);
+        wavBuffer = await convertToWav(req.file.buffer);
       } catch (error) {
-        console.log("Error Sentiment Analysis", error);
+        console.error("Error converting to WAV:", error);
+        return res
+          .status(500)
+          .json({ message: "Error converting audio to WAV format" });
       }
-      let formDataSafety = new FormData();
-      formDataSafety.append(
-        "audio",
-        new Blob([new Uint8Array(req.file.buffer)], {
-          type: req.file.mimetype,
-        }),
-        req.file.originalname,
-      );
-      try {
-        const safetyResponse = await fetch(
-          "https://mennatullahhany-bertx.hf.space/predict",
-          {
-            method: "POST",
-            body: formDataSafety,
-          },
+      if (wavBuffer) {
+        let formData = new FormData();
+        formData.append(
+          "file",
+          new Blob([new Uint8Array(wavBuffer)], {
+            type: "audio/wav",
+          }),
+          "audio.wav",
         );
-        const safetyData = await safetyResponse.json();
-        console.log("Safety Data", safetyData);
-        sentimentResponse.safety = safetyData.result;
-        sentimentResponse.safetyConfidence = safetyData.confidence;
-      } catch (error) {
-        console.log("Error Safety Analysis", error);
+        try {
+          const response = await fetch(
+            "https://abedir-emotion-detector-api.hf.space/predict",
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
+          sentimentResponse = await response.json();
+          console.log("Sentiment Response", sentimentResponse);
+        } catch (error) {
+          console.log("Error Sentiment Analysis", error);
+        }
+        let formDataSafety = new FormData();
+        formDataSafety.append(
+          "audio",
+          new Blob([new Uint8Array(wavBuffer)], {
+            type: "audio/wav",
+          }),
+          "audio.wav",
+        );
+        try {
+          const safetyResponse = await fetch(
+            "https://mennatullahhany-bertx.hf.space/predict",
+            {
+              method: "POST",
+              body: formDataSafety,
+            },
+          );
+          const safetyData = await safetyResponse.json();
+          console.log("Safety Data", safetyData);
+          sentimentResponse.safety = safetyData.result;
+          sentimentResponse.safetyConfidence = safetyData.confidence;
+        } catch (error) {
+          console.log("Error Safety Analysis", error);
+        }
       }
     }
 
