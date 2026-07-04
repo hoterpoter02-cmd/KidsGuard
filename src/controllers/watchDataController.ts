@@ -10,42 +10,6 @@ interface IsentimentResponse {
   safetyConfidence: number | null;
 }
 
-const PREDICTION_TIMEOUT_MS = 10000;
-
-const bufferToFormData = (
-  fieldName: string,
-  buffer: Buffer,
-  mimetype: string,
-  originalname: string,
-) => {
-  const formData = new FormData();
-  formData.append(
-    fieldName,
-    new Blob([new Uint8Array(buffer)], {
-      type: mimetype,
-    }),
-    originalname,
-  );
-  return formData;
-};
-
-const fetchJsonWithTimeout = async (url: string, body: FormData) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), PREDICTION_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      body,
-      signal: controller.signal,
-    });
-
-    return await response.json();
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
-
 // POST /api/watch-data
 export const uploadWatchData = async (req: Request, res: Response) => {
   try {
@@ -66,40 +30,50 @@ export const uploadWatchData = async (req: Request, res: Response) => {
     };
 
     if (req.file) {
-      const fileBuffer = req.file.buffer;
-      const [emotionResult, safetyResult] = await Promise.allSettled([
-        fetchJsonWithTimeout(
+      // Multer changes the file buffer to Uint8Array, convert it back to Blob
+      let formData = new FormData();
+      formData.append(
+        "file",
+        new Blob([new Uint8Array(req.file.buffer)], {
+          type: req.file.mimetype,
+        }),
+        req.file.originalname,
+      );
+      try {
+        const response = await fetch(
           "https://abedir-emotion-detector-api.hf.space/predict",
-          bufferToFormData(
-            "file",
-            fileBuffer,
-            req.file.mimetype,
-            req.file.originalname,
-          ),
-        ),
-        fetchJsonWithTimeout(
-          "https://mennatullahhany-bertx.hf.space/predict",
-          bufferToFormData(
-            "audio",
-            fileBuffer,
-            req.file.mimetype,
-            req.file.originalname,
-          ),
-        ),
-      ]);
-
-      if (emotionResult.status === "fulfilled") {
-        sentimentResponse.emotion = emotionResult.value.emotion;
-        sentimentResponse.confidence = emotionResult.value.confidence;
-      } else {
-        console.log("Error Sentiment Analysis", emotionResult.reason);
+          {
+            method: "POST",
+            body: formData,
+          },
+        );
+        sentimentResponse = await response.json();
+        console.log("Sentiment Response", sentimentResponse);
+      } catch (error) {
+        console.log("Error Sentiment Analysis", error);
       }
-
-      if (safetyResult.status === "fulfilled") {
-        sentimentResponse.safety = safetyResult.value.result;
-        sentimentResponse.safetyConfidence = safetyResult.value.confidence;
-      } else {
-        console.log("Error Safety Analysis", safetyResult.reason);
+      let formDataSafety = new FormData();
+      formDataSafety.append(
+        "audio",
+        new Blob([new Uint8Array(req.file.buffer)], {
+          type: req.file.mimetype,
+        }),
+        req.file.originalname,
+      );
+      try {
+        const safetyResponse = await fetch(
+          "https://mennatullahhany-bertx.hf.space/predict",
+          {
+            method: "POST",
+            body: formDataSafety,
+          },
+        );
+        const safetyData = await safetyResponse.json();
+        console.log("Safety Data", safetyData);
+        sentimentResponse.safety = safetyData.result;
+        sentimentResponse.safetyConfidence = safetyData.confidence;
+      } catch (error) {
+        console.log("Error Safety Analysis", error);
       }
     }
 
