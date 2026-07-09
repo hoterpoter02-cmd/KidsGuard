@@ -1,179 +1,169 @@
 # ChildGuard Backend
 
-A Node.js/Express backend API for managing child smartwatch data, including location tracking, health metrics, and geofencing capabilities.
+ChildGuard Backend is a Node.js and TypeScript API for smartwatch-based child monitoring. It stores watch telemetry, linked devices, allowed geofence zones, emergency contact numbers, and audio recordings, then exposes the data through authenticated REST endpoints and Swagger documentation.
 
-## Features
+## What it does
 
-- **User Authentication**: Email/password and Google OAuth authentication
-- **Watch Management**: Link and manage multiple smartwatches via serial numbers
-- **Real-time Watch Data**: Track heart rate, step count, GPS location, battery level, and audio recordings
-- **Geofencing**: Create and manage allowed zones with radius-based alerts
-- **API Documentation**: Auto-generated Swagger/OpenAPI documentation
+- Authenticates users with JWT access tokens and refresh tokens
+- Links one or more watch serial numbers to a user account
+- Accepts watch telemetry with optional uploaded audio
+- Stores geofence zones and creates notifications when a watch leaves them
+- Exposes user, admin, audio, and emergency-number endpoints
+- Serves OpenAPI docs at `/api-docs`
 
 ## Tech Stack
 
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Express.js
-- **Database**: MongoDB (via Mongoose ODM)
-- **Authentication**: JWT tokens
-- **API Documentation**: Swagger UI
-- **Testing**: Jest with MongoDB Memory Server
+- Runtime: Node.js
+- Language: TypeScript
+- Framework: Express
+- Database: MongoDB with Mongoose
+- Auth: JWT bearer tokens plus refresh-token cookies
+- File upload: Multer
+- Audio processing: fluent-ffmpeg with ffmpeg-static
+- API docs: swagger-jsdoc + swagger-ui-express
+- Tests: Jest, Supertest, mongodb-memory-server
 
 ## Project Structure
 
 ```
 src/
-├── app.ts                    # Express app configuration
-├── config/
-│   ├── db.ts                 # MongoDB connection
-│   ├── server.ts             # Server entry point
-│   └── swagger.ts            # Swagger setup
-├── controllers/              # Request handlers
-│   ├── authController.ts
-│   ├── userController.ts
-│   ├── watchDataController.ts
-│   ├── allowedZoneController.ts
-│   └── linkWatchController.ts
-├── middlewares/
-│   └── isAuthenticated.ts    # Auth middleware
-├── models/                   # Mongoose schemas
-│   ├── User.ts
-│   ├── WatchData.ts
-│   ├── AllowedZone.ts
-│   └── Alert.ts
-└── routes/                   # API route definitions
-    ├── authRoutes.ts
-    ├── userRoutes.ts
-    ├── watchDataRoutes.ts
-    ├── allowedZoneRoutes.ts
-    └── linkWatchRoutes.ts
+    app.ts                 # Express app configuration and route wiring
+    config/
+        db.ts                # MongoDB connection helper
+        server.ts            # Server bootstrap and graceful shutdown
+        swagger.ts           # Swagger/OpenAPI setup
+    controllers/           # Route handlers and domain logic
+    middlewares/           # Auth and admin guards
+    models/                # Mongoose schemas
+    routes/                # API route definitions
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v18 or higher)
-- MongoDB (local or cloud instance)
-- npm or yarn
+- Node.js 18 or newer
+- MongoDB running locally or in the cloud
+- npm
 
-### Installation
-
-1. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd ChildGuardNode
-```
-
-2. Install dependencies:
+### Install
 
 ```bash
 npm install
 ```
 
-3. Create a `.env` file in the root directory:
+### Environment Variables
+
+Create a `.env` file in the project root.
 
 ```env
 PORT=3000
-MONGODB_URI=mongodb://
-SESSION_SECRET=your-session-secret
+MONGODB_URI=
 JWT_SECRET=your-jwt-secret
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
+API_BASE_URL=http://localhost:3000
+Hash_Salt=10
+DAHL_API_KEY=your-dahl-api-key
+NODE_ENV=development
 ```
 
-### Running the Application
+`MONGODB_URI` and `JWT_SECRET` should be set explicitly for any non-local environment. The audio-analysis pipeline also uses `DAHL_API_KEY` when it is available.
 
-**Development mode:**
+### Run
+
+Development:
 
 ```bash
 npm run dev
 ```
 
-**Build for production:**
+Production build:
 
 ```bash
 npm run build
 npm start
 ```
 
-**Run tests:**
+Tests:
 
 ```bash
 npm test
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage report
+npm run test:watch
+npm run test:coverage
 ```
+
+## Authentication
+
+Authentication is JWT-based.
+
+- `POST /api/auth/register` creates a user and returns an access token plus refresh token
+- `POST /api/auth/login` validates email and password and returns tokens
+- `POST /api/auth/refresh-token` issues new tokens from the refresh token cookie, request body, or bearer token
+- `POST /api/auth/logout` clears the refresh token cookie
+
+Protected routes expect `Authorization: Bearer <access-token>`.
 
 ## API Endpoints
 
-### Authentication
+### User
 
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login with email/password
-- `GET /api/auth/google` - Login with Google OAuth
-- `POST /api/auth/logout` - Logout current user
-
-### User Management
-
-- `GET /api/user/profile` - Get current user profile
-- `PUT /api/user/profile` - Update user profile
+- `GET /api/user/me` returns the authenticated user profile
+- `PUT /api/user/me` updates the authenticated user name or photo URL
+- `DELETE /api/user/me` deletes the authenticated user account
+- `GET /api/user/notifications` returns alerts for the authenticated user
 
 ### Watch Linking
 
-- `POST /api/link-watch` - Link a watch to user account
-- `DELETE /api/link-watch/:serialNumber` - Unlink a watch
+- `POST /api/link-watch` links a watch serial number to the current user
 
 ### Watch Data
 
-- `POST /api/watch-data` - Submit watch data
-- `GET /api/watch-data/:serialNumber` - Get watch data history
-- `GET /api/watch-data/:serialNumber/latest` - Get latest data point
+- `POST /api/watch-data` uploads telemetry and optional audio using `multipart/form-data`
+- `GET /api/watch-data/:serialNumber` returns the latest data point for a watch owned by the current user
 
-### Allowed Zones (Geofencing)
+### Audio
 
-- `POST /api/allowed-zone` - Create a geofence zone
-- `GET /api/allowed-zone/:serialNumber` - Get all zones for a watch
-- `PUT /api/allowed-zone/:id` - Update a zone
-- `DELETE /api/allowed-zone/:id` - Delete a zone
+- `GET /api/audio/:serialNumber` returns the latest recorded audio metadata for a watch
+- `GET /api/audio/file/:audioId` streams the raw audio file back as `audio/wav`
 
-## API Documentation
+### Allowed Zones
 
-Once the server is running, visit:
+- `POST /api/allowed-zone` creates a geofence zone for a linked watch
+- `GET /api/allowed-zone/:serialNumber` lists zones for a watch
+- `DELETE /api/allowed-zone/:zoneId` removes a zone
 
-```
+### Emergency Numbers
+
+- `GET /api/emergency-number/:serialNumber` fetches the current emergency number
+- `POST /api/emergency-number/:serialNumber` creates or updates the emergency number for a linked watch
+
+### Admin
+
+All admin routes require an authenticated user with `role: admin`.
+
+- `GET /api/admin/users` lists users without passwords
+- `GET /api/admin/watchData/:serialNumber` returns all watch data for a serial number
+- `GET /api/admin/audio/:serialNumber` returns all recorded audio for a serial number
+
+## Data Model Notes
+
+- `User` stores name, email, hashed password, optional Google ID, photo URL, role, and linked watch serial numbers
+- `WatchData` stores heart rate, step count, GPS coordinates, battery level, and timestamps
+- `RecordedAudio` stores the raw audio buffer and analysis metadata
+- `AllowedZone` stores the geofence name, center coordinates, and radius
+- `EmergencyNumber` stores one emergency contact per watch serial number
+
+Watch data and recorded audio are automatically pruned so only the latest 10 records per serial number are kept.
+
+## Behavior Notes
+
+- Geofence alerts are created when a location update falls outside all allowed zones for a linked watch
+- Audio uploads may trigger background analysis and alert creation
+- The API returns JSON errors for unknown routes and centralized server errors
+
+## Swagger Docs
+
+Once the server is running, open:
+
+```text
 http://localhost:3000/api-docs
 ```
-
-## Data Models
-
-### User
-
-- Email, name, password (hashed)
-- Google OAuth support
-- Array of linked watch serial numbers
-
-### WatchData
-
-- Serial number (indexed)
-- Heart rate, step count, battery level
-- GPS coordinates (latitude/longitude)
-- Recorded audio (binary)
-- Automatic retention: Only last 10 records per device
-
-### AllowedZone
-
-- Serial number reference
-- Zone name
-- Center coordinates (lat/lng)
-- Radius in meters
-
-## Environment Variables
-
-| Variable         | Description               | Required           |
-| ---------------- | ------------------------- | ------------------ |
-| `PORT`           | Server port               | No (default: 3000) |
-| `MONGODB_URI`    | MongoDB connection string | Yes                |
-| `SESSION_SECRET` | Express session secret    | Yes                |
-| `JWT_SECRET`     | JWT signing secret        | Yes                |

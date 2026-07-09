@@ -17,6 +17,12 @@ interface IsentimentResponse {
   safetyConfidence: number | null;
 }
 
+const systemMessage = {
+  role: "system",
+  content:
+    'You are a safety classifier.\nYour job is to combine:\n- smartwatch metrics\n- speech transcript\n- sentiment analysis\n- danger classifier output\nIgnore null values\n\nReturn ONLY valid JSON {label: string, confidence: number, reason: string}\nRules:\n- Label "danger" if the evidence strongly suggests the user is in danger.\n- Label "safe" otherwise.\n- Consider all evidence instead of relying on a single signal.',
+};
+
 // Function to get allowed zones for a specific watch serial number
 async function getWatchZones(
   serialNumber: string,
@@ -94,6 +100,10 @@ async function analyzeRecordedAudio(
   recordedAudioId: string,
   serialNumber: string,
   watchDataId: string,
+  watchData?: {
+    heartRate?: number;
+    stepCount?: number;
+  },
 ): Promise<void> {
   let sentimentResponse: IsentimentResponse = {
     emotion: null,
@@ -138,7 +148,7 @@ async function analyzeRecordedAudio(
       }),
       "audio.wav",
     );
-
+    let transcript: string | null = null;
     try {
       const safetyResponse = await fetch(
         "https://mennatullahhany-bertx.hf.space/predict",
@@ -148,6 +158,9 @@ async function analyzeRecordedAudio(
         },
       );
       const safetyData = await safetyResponse.json();
+      if (safetyData && safetyData.text && safetyData.text.length > 0) {
+        transcript = safetyData.text;
+      }
       sentimentResponse.safety = safetyData.result;
       sentimentResponse.safetyConfidence = safetyData.confidence;
     } catch (error) {
@@ -161,17 +174,69 @@ async function analyzeRecordedAudio(
       safetyConfidence: sentimentResponse.safetyConfidence,
     });
 
-    if (
-      sentimentResponse.emotion === "Angry/Fearful" ||
-      sentimentResponse.emotion === "Sad/Cry" ||
-      sentimentResponse.safety === "Danger"
-    ) {
-      await createNotificationsForWatchAlert({
-        serialNumber,
-        alertType: "danger",
-        watchDataId: watchDataId,
-        recordedAudioId: recordedAudioId ?? undefined,
-      });
+    if (watchData) {
+      const data = {
+        heartRate: watchData.heartRate ?? null,
+        stepCount: watchData.stepCount ?? null,
+        emotion: sentimentResponse.emotion ?? null,
+        emotionConfidence: sentimentResponse.confidence ?? null,
+        safety: sentimentResponse.safety ?? null,
+        safetyConfidence: sentimentResponse.safetyConfidence ?? null,
+        transcript: transcript ?? null,
+      };
+      try {
+        const response = await fetch(
+          "https://inference.dahl.global/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.DAHL_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "MiniMaxAI/MiniMax-M2.7",
+              messages: [
+                systemMessage,
+                {
+                  role: "user",
+                  content: JSON.stringify(data),
+                },
+              ],
+            }),
+          },
+        );
+        const dahlResponse = await response.json();
+        const content = dahlResponse?.choices?.[0]?.message?.content ?? "";
+        const jsonMatch = content.match(/\{[\s\S]*\}$/);
+        if (!jsonMatch) {
+          throw new Error("No JSON found in response");
+        }
+        const dahlJSON = JSON.parse(jsonMatch[0]);
+        let dahlLabel: string | null = dahlJSON?.label ?? null;
+
+        if (dahlLabel === "danger") {
+          await createNotificationsForWatchAlert({
+            serialNumber,
+            alertType: "danger",
+            watchDataId: watchDataId,
+            recordedAudioId: recordedAudioId ?? undefined,
+          });
+        }
+      } catch (error) {
+        console.log("Error DAHL API", error);
+        if (
+          sentimentResponse.emotion === "Angry/Fearful" ||
+          sentimentResponse.emotion === "Sad/Cry" ||
+          sentimentResponse.safety === "Danger"
+        ) {
+          await createNotificationsForWatchAlert({
+            serialNumber,
+            alertType: "danger",
+            watchDataId: watchDataId,
+            recordedAudioId: recordedAudioId ?? undefined,
+          });
+        }
+      }
     }
   } catch (error) {
     console.log("Error processing recorded audio", error);
@@ -264,6 +329,7 @@ export const uploadWatchData = async (req: Request, res: Response) => {
         recordedAudioId,
         serialNumber,
         watchDataId,
+        watchData ? { heartRate, stepCount } : undefined,
       );
     }
   } catch (error) {
